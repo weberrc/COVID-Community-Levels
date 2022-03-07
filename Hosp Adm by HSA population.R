@@ -1,6 +1,7 @@
 library(ciisr)
 library(covidr)
 library(dbplyr)
+library(geojsonR)
 library(ggplot2)
 library(ggrepel)
 library(lubridate)
@@ -15,27 +16,6 @@ seven_day_total <- function(x){
 
 connect("covid19", server = "DPHE144")
 
-# HHS Hospitalizations -------------------------------
-
-# https://beta.healthdata.gov/Hospital/COVID-19-Reported-Patient-Impact-and-Hospital-Capa/g62h-syeh
-hhs <- read.socrata("https://healthdata.gov/resource/g62h-syeh.json")
-
-hosp0 <- hhs %>% 
-  as_tibble() %>% 
-  select(state, date, previous_day_admission_adult_covid_confirmed,
-         previous_day_admission_pediatric_covid_confirmed) %>% 
-  filter(state == "CO") %>% 
-  select(-state) %>%
-  mutate_at(c(2:3), ~replace(., is.na(.), 0)) %>% 
-  mutate(date = ymd(str_sub(date, 1, 10)),
-         admissions = as.numeric(previous_day_admission_adult_covid_confirmed) + 
-           as.numeric(previous_day_admission_pediatric_covid_confirmed)) %>%
-  arrange(date) %>% 
-  select(date, admissions) %>% 
-  mutate(adm_7 = seven_day_total(admissions)) %>% 
-  filter(date >= ymd("2020-10-01"),
-         date <= Sys.Date() - days(7))
-
 county_pop <- tbl(conn, in_schema("dbo", "populations")) %>% 
   filter(metric == "county",
          year == 2020) %>% 
@@ -44,11 +24,14 @@ county_pop <- tbl(conn, in_schema("dbo", "populations")) %>%
 
 county_pop$group <- str_to_title(county_pop$group)
 
+# HHS Hospitalizations -------------------------------
 
 hhs_county <- read.csv(file.choose())
 
-hhs_county %<>% 
-  select(County, conf_covid_admit_last_7_d) %>% 
+week_rate <- hhs_county %>% 
+  select(State_Abbreviation, County, conf_covid_admit_last_7_d) %>% 
+  filter(State_Abbreviation == "CO") %>% 
+  select(-State_Abbreviation) %>%
   mutate(County = gsub(" County, CO", "", County)) %>% 
   left_join(county_pop, by = c("County" = "group")) %>%
   mutate(hsa_cdc = case_when(County == "Alamosa" |
@@ -88,13 +71,62 @@ hhs_county %<>%
                                County == "Fremont" ~ 812,
                              
                              County == "Baca" ~ 562,
-                               
-                               County == "Larimer" ~ 796)) %>% 
+                             
+                             County == "Larimer" ~ 796,
+                             
+                             County == "Logan" |
+                               County == "Phillips" |
+                               County == "Sedgwick" ~ 763,
+                             
+                             County == "Eagle" |
+                               County == "Garfield" |
+                               County == "Mesa" |
+                               County == "Pitkin" |
+                               County == "Rio Blanco" ~ 711,
+                             
+                             County == "Delta" |
+                               County == "Gunnison" |
+                               County == "Hinsdale" |
+                               County == "Montrose" |
+                               County == "Ouray" |
+                               County == "San Miguel" ~ 761,
+                             
+                             County == "Bent" |
+                               County == "Crowley" |
+                               County == "Kiowa" |
+                               County == "Otero" |
+                               County == "Prowers" ~ 745,
+                             
+                             County == "Huerfano" |
+                               County == "Las Animas" |
+                               County == "Pueblo" ~ 704,
+                             
+                             County == "Moffat" |
+                               County == "Routt" ~ 735,
+                             
+                             County == "Archuleta" |
+                               County == "Dolores" |
+                               County == "La Plata" |
+                               County == "Montezuma" |
+                               County == "San Juan" ~ 740,
+                             
+                             County == "Morgan" |
+                               County == "Washington" |
+                               County == "Weld" |
+                               County == "Yuma" ~ 760)) %>% 
   group_by(hsa_cdc) %>% 
-  summarise(total_adm_hhs = sum(conf_covid_admit_last_7_d),
-            total_pop = sum(population)) %>% 
-  mutate(rate = round((total_adm_hhs/total_pop)*100000))
+  mutate(total_adm_hhs = sum(conf_covid_admit_last_7_d),
+            total_pop = sum(population),
+         rate = round((total_adm_hhs/total_pop)*100000)) %>% 
+  ungroup() %>% 
+  filter(hsa_cdc != 740, hsa_cdc != 771, hsa_cdc != 562) # filter regions with OOS counties
 
+
+write.csv(week_rate, "week_rate.csv")
+
+# HSA 740 is assigned to NM and AZ counties
+# HSA 771 is assigned to WY
+# HSA 562 is assigned to KS
 
 
 
