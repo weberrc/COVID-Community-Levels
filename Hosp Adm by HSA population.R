@@ -28,6 +28,8 @@ county_pop$group <- str_to_title(county_pop$group)
 
 hhs_county <- read.csv(file.choose())
 
+test <- rgdal::readOGR("https://opendata.arcgis.com/datasets/cad5b70395a04b95936f0286be30e282_0.geojson")
+
 week_rate <- hhs_county %>% 
   select(State_Abbreviation, County, conf_covid_admit_last_7_d) %>% 
   filter(State_Abbreviation == "CO") %>% 
