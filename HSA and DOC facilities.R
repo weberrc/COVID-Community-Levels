@@ -1,3 +1,4 @@
+library(googlesheets4)
 library(magrittr)
 library(RSocrata)
 library(tidyverse)
@@ -23,5 +24,10 @@ cdc_cl %<>%
                                     county == "Pueblo" |              # La Vista Correctional Facility; Youthful Offender System
                                     county == "Garfield" |            # Rifle Correctional Facility; San Carlos Correctional Facility
                                     county == "Logan" |               # Sterling Correctional Facility
-                                    county == "Las Animas" ~ 1,       # Trinidad Correctional Facility
-                                  TRUE ~ 0))             
+                                    county == "Las Animas" ~ "Yes",       # Trinidad Correctional Facility
+                                  TRUE ~ " "))             
+
+# write to google sheet
+sheet_write(cdc_cl, ss = "https://docs.google.com/spreadsheets/d/1jqOvNKMEPFNYdaScHvf06uHuS_lOCQ2Rfno6pvdtsEQ/edit#gid=0",
+            sheet = "Sheet1")
+
