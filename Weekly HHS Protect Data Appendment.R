@@ -6,6 +6,8 @@ library(readr)
 library(RSocrata)
 library(tidyverse)
 
+# gs4_auth()
+
 hhs_county <- read.csv(file.choose())
 
 latest <- hhs_county %>% 
