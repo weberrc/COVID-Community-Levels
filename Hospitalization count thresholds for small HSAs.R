@@ -11,7 +11,7 @@ library(RSocrata)
 library(tidyverse)
 
 # make a sequence of hospitalizations to calculate rates ----------------------
-hosp_counts <- seq(0,200, by = 3)
+hosp_counts <- seq(0,30, by = 1)
 full_hosp_seq <- tibble(hosp_seq = rep(hosp_counts, length(unique(county_pop$hsa_cdc))))
 
 seq_hsa <- tibble(hsa_cdc = rep(unique(county_pop$hsa_cdc), each = length(hosp_counts)))
@@ -115,10 +115,48 @@ county_pop <- tbl(conn, in_schema("dbo", "populations")) %>%
   ungroup() %>% 
   filter(total_pop <= 100000) %>% 
   right_join(seq_hsa) %>% 
+  filter(!is.na(group)) %>% 
   mutate(rate = round((hosp_seq/total_pop)*100000),
          com_level = case_when(rate < 10 ~ "Low",
                                rate >= 10 & rate <= 19.9 ~ "Medium",
                                rate >= 20 ~ "High"))
-  
 
 
+county_pop$com_level <- factor(county_pop$com_level, levels = c("Low", "Medium", "High"))  
+
+ggplot(county_pop[county_pop$hsa_cdc == 731,], aes(x = hosp_seq, y = rate)) +
+  theme_covid() +
+  ylab("Hospitalization\nRate per\n100k") +
+  xlab("Hospitalizations") +
+  scale_x_continuous(breaks = seq(0,30, by = 5)) +
+  annotate("rect", xmin = min(county_pop[county_pop$hsa_cdc == 731 & county_pop$com_level == "Medium",]$hosp_seq),
+           xmax=min(county_pop[county_pop$hsa_cdc == 731 & county_pop$com_level == "High",]$hosp_seq),
+           ymin=-Inf, ymax=Inf, alpha=0.2, fill="gold") +
+  annotate("rect", xmin = min(county_pop[county_pop$hsa_cdc == 731 & county_pop$com_level == "Low",]$hosp_seq),
+           xmax=min(county_pop[county_pop$hsa_cdc == 731 & county_pop$com_level == "Medium",]$hosp_seq),
+           ymin=-Inf, ymax=Inf, alpha=0.2, fill="lightgreen") +
+  annotate("rect", xmin = min(county_pop[county_pop$hsa_cdc == 731 & county_pop$com_level == "High",]$hosp_seq),
+           xmax=max(county_pop[county_pop$hsa_cdc == 731 & county_pop$com_level == "High",]$hosp_seq),
+           ymin=-Inf, ymax=Inf, alpha=0.2, fill="darkorange2") +
+  ggtitle("HSA 731", subtitle = "Counties: Alamosa, Conejos, Costilla, Mineral, Rio Grande and Saguache") +
+  geom_point()
+
+ggplot(county_pop[county_pop$hsa_cdc == 731,], aes(x = hosp_seq, y = rate)) +
+  theme_covid() +
+  ylab("Hospitalization\nRate per\n100k") +
+  xlab("Hospitalizations") +
+  scale_x_continuous(breaks = seq(0,30, by = 5)) +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 10, 
+           ymax = 19.9, alpha=0.2, fill="gold") +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 0, 
+           ymax = 10, alpha=0.2, alpha=0.2, fill="lightgreen") +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 20, 
+           ymax = Inf, alpha=0.2, alpha=0.2, fill="darkorange2") +
+  ggtitle("HSA 731", subtitle = "Counties: Alamosa, Conejos, Costilla, Mineral, Rio Grande and Saguache") +
+  geom_point()
