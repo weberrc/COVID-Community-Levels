@@ -10,13 +10,6 @@ library(readr)
 library(RSocrata)
 library(tidyverse)
 
-# make a sequence of hospitalizations to calculate rates ----------------------
-hosp_counts <- seq(0,30, by = 1)
-full_hosp_seq <- tibble(hosp_seq = rep(hosp_counts, length(unique(county_pop$hsa_cdc))))
-
-seq_hsa <- tibble(hsa_cdc = rep(unique(county_pop$hsa_cdc), each = length(hosp_counts)))
-
-seq_hsa <- cbind(seq_hsa, full_hosp_seq)
 
 # read county pop and add sequence of hosp counts ------------------------------
 seven_day_total <- function(x){
@@ -113,9 +106,22 @@ county_pop <- tbl(conn, in_schema("dbo", "populations")) %>%
   group_by(hsa_cdc) %>% 
   mutate(total_pop = sum(population)) %>% 
   ungroup() %>% 
-  filter(total_pop <= 100000) %>% 
+  filter(total_pop <= 100000)
+
+# make a sequence of hospitalizations to calculate rates ----------------------
+hosp_counts <- seq(0,30, by = 1)
+full_hosp_seq <- tibble(hosp_seq = rep(hosp_counts, length(unique(county_pop$hsa_cdc))))
+
+seq_hsa <- tibble(hsa_cdc = rep(unique(county_pop$hsa_cdc), each = length(hosp_counts)))
+
+seq_hsa <- cbind(seq_hsa, full_hosp_seq)
+
+county_pop %<>% 
   right_join(seq_hsa) %>% 
-  filter(!is.na(group)) %>% 
+  filter(!is.na(group),
+         hsa_cdc != 740, 
+         hsa_cdc != 771, 
+         hsa_cdc != 562) %>% 
   mutate(rate = round((hosp_seq/total_pop)*100000),
          com_level = case_when(rate < 10 ~ "Low",
                                rate >= 10 & rate <= 19.9 ~ "Medium",
@@ -124,22 +130,24 @@ county_pop <- tbl(conn, in_schema("dbo", "populations")) %>%
 
 county_pop$com_level <- factor(county_pop$com_level, levels = c("Low", "Medium", "High"))  
 
-ggplot(county_pop[county_pop$hsa_cdc == 731,], aes(x = hosp_seq, y = rate)) +
-  theme_covid() +
-  ylab("Hospitalization\nRate per\n100k") +
-  xlab("Hospitalizations") +
-  scale_x_continuous(breaks = seq(0,30, by = 5)) +
-  annotate("rect", xmin = min(county_pop[county_pop$hsa_cdc == 731 & county_pop$com_level == "Medium",]$hosp_seq),
-           xmax=min(county_pop[county_pop$hsa_cdc == 731 & county_pop$com_level == "High",]$hosp_seq),
-           ymin=-Inf, ymax=Inf, alpha=0.2, fill="gold") +
-  annotate("rect", xmin = min(county_pop[county_pop$hsa_cdc == 731 & county_pop$com_level == "Low",]$hosp_seq),
-           xmax=min(county_pop[county_pop$hsa_cdc == 731 & county_pop$com_level == "Medium",]$hosp_seq),
-           ymin=-Inf, ymax=Inf, alpha=0.2, fill="lightgreen") +
-  annotate("rect", xmin = min(county_pop[county_pop$hsa_cdc == 731 & county_pop$com_level == "High",]$hosp_seq),
-           xmax=max(county_pop[county_pop$hsa_cdc == 731 & county_pop$com_level == "High",]$hosp_seq),
-           ymin=-Inf, ymax=Inf, alpha=0.2, fill="darkorange2") +
-  ggtitle("HSA 731", subtitle = "Counties: Alamosa, Conejos, Costilla, Mineral, Rio Grande and Saguache") +
-  geom_point()
+# ggplot(county_pop[county_pop$hsa_cdc == 731,], aes(x = hosp_seq, y = rate)) +
+#   theme_covid() +
+#   ylab("Hospitalization\nRate per\n100k") +
+#   xlab("Hospitalizations") +
+#   scale_x_continuous(breaks = seq(0,30, by = 5)) +
+#   annotate("rect", xmin = min(county_pop[county_pop$hsa_cdc == 731 & county_pop$com_level == "Medium",]$hosp_seq),
+#            xmax=min(county_pop[county_pop$hsa_cdc == 731 & county_pop$com_level == "High",]$hosp_seq),
+#            ymin=-Inf, ymax=Inf, alpha=0.2, fill="gold") +
+#   annotate("rect", xmin = min(county_pop[county_pop$hsa_cdc == 731 & county_pop$com_level == "Low",]$hosp_seq),
+#            xmax=min(county_pop[county_pop$hsa_cdc == 731 & county_pop$com_level == "Medium",]$hosp_seq),
+#            ymin=-Inf, ymax=Inf, alpha=0.2, fill="lightgreen") +
+#   annotate("rect", xmin = min(county_pop[county_pop$hsa_cdc == 731 & county_pop$com_level == "High",]$hosp_seq),
+#            xmax=max(county_pop[county_pop$hsa_cdc == 731 & county_pop$com_level == "High",]$hosp_seq),
+#            ymin=-Inf, ymax=Inf, alpha=0.2, fill="darkorange2") +
+#   ggtitle("HSA 731", subtitle = "Counties: Alamosa, Conejos, Costilla, Mineral, Rio Grande and Saguache") +
+#   geom_point()
+
+# HSA 731 -------------------------------------
 
 ggplot(county_pop[county_pop$hsa_cdc == 731,], aes(x = hosp_seq, y = rate)) +
   theme_covid() +
@@ -153,10 +161,128 @@ ggplot(county_pop[county_pop$hsa_cdc == 731,], aes(x = hosp_seq, y = rate)) +
   annotate("rect", xmin = -Inf,
            xmax = Inf,
            ymin = 0, 
-           ymax = 10, alpha=0.2, alpha=0.2, fill="lightgreen") +
+           ymax = 10, alpha=0.2, fill="lightgreen") +
   annotate("rect", xmin = -Inf,
            xmax = Inf,
            ymin = 20, 
-           ymax = Inf, alpha=0.2, alpha=0.2, fill="darkorange2") +
-  ggtitle("HSA 731", subtitle = "Counties: Alamosa, Conejos, Costilla, Mineral, Rio Grande and Saguache") +
+           ymax = Inf, alpha=0.2, fill="darkorange2") +
+  ggtitle("HSA 731 (Alamosa, Conejos, Costilla, Mineral, Rio Grande and Saguache)",
+          subtitle = paste0("Total Population: ", prettyNum(county_pop[county_pop$hsa_cdc == 731,]$total_pop[1], big.mark = ","))) +
+  geom_point()
+
+
+# HSA 745 ---------------------------------------
+
+ggplot(county_pop[county_pop$hsa_cdc == 745,], aes(x = hosp_seq, y = rate)) +
+  theme_covid() +
+  ylab("Hospitalization\nRate per\n100k") +
+  xlab("Hospitalizations") +
+  scale_x_continuous(breaks = seq(0,30, by = 5)) +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 10, 
+           ymax = 19.9, alpha=0.2, fill="gold") +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 0, 
+           ymax = 10, alpha=0.2, fill="lightgreen") +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 20, 
+           ymax = Inf, alpha=0.2, fill="darkorange2") +
+  ggtitle("HSA 745 (Bent, Crowley, Kiowa, Otero and Prowers)",
+          subtitle = paste0("Total Population: ", prettyNum(county_pop[county_pop$hsa_cdc == 745,]$total_pop[1], big.mark = ","))) +
+  geom_point()
+
+# HSA 786 ---------------------------------------
+
+ggplot(county_pop[county_pop$hsa_cdc == 786,], aes(x = hosp_seq, y = rate)) +
+  theme_covid() +
+  ylab("Hospitalization\nRate per\n100k") +
+  xlab("Hospitalizations") +
+  scale_x_continuous(breaks = seq(0,30, by = 5)) +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 10, 
+           ymax = 19.9, alpha=0.2, fill="gold") +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 0, 
+           ymax = 10, alpha=0.2, fill="lightgreen") +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 20, 
+           ymax = Inf, alpha=0.2, fill="darkorange2") +
+  ggtitle("HSA 786 (Chaffee and Lake)",
+          subtitle = paste0("Total Population: ", prettyNum(county_pop[county_pop$hsa_cdc == 786,]$total_pop[1], big.mark = ","))) +
+  geom_point()
+
+# HSA 812 ---------------------------------------
+
+ggplot(county_pop[county_pop$hsa_cdc == 812,], aes(x = hosp_seq, y = rate)) +
+  theme_covid() +
+  ylab("Hospitalization\nRate per\n100k") +
+  xlab("Hospitalizations") +
+  scale_x_continuous(breaks = seq(0,30, by = 5)) +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 10, 
+           ymax = 19.9, alpha=0.2, fill="gold") +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 0, 
+           ymax = 10, alpha=0.2, fill="lightgreen") +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 20, 
+           ymax = Inf, alpha=0.2, fill="darkorange2") +
+  ggtitle("HSA 812 (Custer and Fremont)",
+          subtitle = paste0("Total Population: ", prettyNum(county_pop[county_pop$hsa_cdc == 812,]$total_pop[1], big.mark = ","))) +
+  geom_point()
+
+
+# HSA 763 ---------------------------------------
+
+ggplot(county_pop[county_pop$hsa_cdc == 763,], aes(x = hosp_seq, y = rate)) +
+  theme_covid() +
+  ylab("Hospitalization\nRate per\n100k") +
+  xlab("Hospitalizations") +
+  scale_x_continuous(breaks = seq(0,30, by = 5)) +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 10, 
+           ymax = 19.9, alpha=0.2, fill="gold") +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 0, 
+           ymax = 10, alpha=0.2, fill="lightgreen") +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 20, 
+           ymax = Inf, alpha=0.2, fill="darkorange2") +
+  ggtitle("HSA 763 (Logan, Phillips and Sedgwick)",
+          subtitle = paste0("Total Population: ", prettyNum(county_pop[county_pop$hsa_cdc == 763,]$total_pop[1], big.mark = ","))) +
+  geom_point()
+
+# HSA 735 ---------------------------------------
+
+ggplot(county_pop[county_pop$hsa_cdc == 735,], aes(x = hosp_seq, y = rate)) +
+  theme_covid() +
+  ylab("Hospitalization\nRate per\n100k") +
+  xlab("Hospitalizations") +
+  scale_x_continuous(breaks = seq(0,30, by = 5)) +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 10, 
+           ymax = 19.9, alpha=0.2, fill="gold") +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 0, 
+           ymax = 10, alpha=0.2, fill="lightgreen") +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 20, 
+           ymax = Inf, alpha=0.2, fill="darkorange2") +
+  ggtitle("HSA 735 (Moffat and Routt)",
+          subtitle = paste0("Total Population: ", prettyNum(county_pop[county_pop$hsa_cdc == 735,]$total_pop[1], big.mark = ","))) +
   geom_point()
