@@ -286,3 +286,58 @@ ggplot(county_pop[county_pop$hsa_cdc == 735,], aes(x = hosp_seq, y = rate)) +
   ggtitle("HSA 735 (Moffat and Routt)",
           subtitle = paste0("Total Population: ", prettyNum(county_pop[county_pop$hsa_cdc == 735,]$total_pop[1], big.mark = ","))) +
   geom_point()
+
+# HSA 740 ---------------------------------------
+
+oos_counties <- tibble(group = c('Navajo', 'San Juan AZ', 'San Juan UT'),
+                       population = c(111606, 121661, 14518),
+                       hsa_cdc = c(740, 740, 740))
+
+county_pop <- tbl(conn, in_schema("dbo", "populations")) %>% 
+  filter(metric == "county",
+         year == 2020) %>% 
+  select(group, population) %>% 
+  collect() %>% 
+  mutate(group = str_to_title(group),
+         hsa_cdc = case_when(group == "Archuleta" |
+                               group == "Dolores" |
+                               group == "La Plata" |
+                               group == "Montezuma" |
+                               group == "San Juan" ~ 740)) %>% 
+  filter(!is.na(hsa_cdc)) %>% 
+  full_join(oos_counties) %>% 
+  mutate(total_pop = sum(population))
+
+hosp_counts <- seq(0,100, by = 1)
+full_hosp_seq <- tibble(hosp_seq = rep(hosp_counts, length(unique(county_pop$hsa_cdc))))
+
+seq_hsa <- tibble(hsa_cdc = rep(unique(county_pop$hsa_cdc), each = length(hosp_counts)))
+
+seq_hsa <- cbind(seq_hsa, full_hosp_seq)
+
+
+county_pop %<>% 
+  right_join(seq_hsa) %>% 
+  mutate(rate = round((hosp_seq/total_pop)*100000))
+
+ggplot(county_pop, aes(x = hosp_seq, y = rate)) +
+  theme_covid() +
+  ylab("Hospitalization\nRate per\n100k") +
+  xlab("Hospitalizations") +
+  scale_x_continuous(breaks = seq(0,100, by = 20)) +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 10, 
+           ymax = 19.9, alpha=0.2, fill="gold") +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 0, 
+           ymax = 10, alpha=0.2, fill="lightgreen") +
+  annotate("rect", xmin = -Inf,
+           xmax = Inf,
+           ymin = 19.9, 
+           ymax = Inf, alpha=0.2, fill="darkorange2") +
+  ggtitle("HSA 740 (Archuleta, Dolores, La Plata, Montezuma, San Juan (CO), San Juan (AZ), San Juan (UT), Navajo (UT))",
+          subtitle = paste0("Total Population: ", prettyNum(county_pop[county_pop$hsa_cdc == 740,]$total_pop[1], big.mark = ","))) +
+  geom_point()
+
