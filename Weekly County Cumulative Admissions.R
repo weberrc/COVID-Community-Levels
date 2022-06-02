@@ -6,10 +6,14 @@ library(lubridate)
 library(magrittr)
 library(readr)
 library(jsonlite)
+library(readxl)
 library(RSocrata)
 library(scales)
 library(stringi)
 library(tidyverse)
+
+# set wd to the folder this code lives in
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 seven_day_total <- function(x){
   (lag(x,6) + lag(x,5) + lag(x,4) + lag(x,3) + lag(x,2) + lag(x,1) + x)}
@@ -63,3 +67,15 @@ county_hosp_rank <- ggplot(hosp0, aes(x = reorder(county, covid_hospital_admissi
 
 ggsave("~/../Downloads/county_hosp_adm.png", width = 6, height = 10)
 
+# HHSProtect Teletracker Data ---------------------------
+tele <- read_excel("Teletracker/2022-05 HHSProtect Teletracker.xlsx") %>% 
+  select(entry_date,
+         admits_last_24_hrs_covid_admissions_confirmed_adult,
+         admits_last_24_hrs_covid_admissions_confirmed_pediatric,
+         hospital_county) %>% 
+  mutate(week = epiweek(entry_date), 
+         year = year(entry_date),
+         adms = admits_last_24_hrs_covid_admissions_confirmed_adult + admits_last_24_hrs_covid_admissions_confirmed_pediatric) %>% 
+  add_epiweek_dates(which_dates = "start") %>% 
+  group_by(start) %>% 
+  summarize(cumul_adm = sum(adms))
