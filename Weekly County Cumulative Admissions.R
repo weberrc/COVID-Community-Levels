@@ -75,7 +75,11 @@ tele <- read_excel("Teletracker/2022-05 HHSProtect Teletracker.xlsx") %>%
          hospital_county) %>% 
   mutate(week = epiweek(entry_date), 
          year = year(entry_date),
-         adms = admits_last_24_hrs_covid_admissions_confirmed_adult + admits_last_24_hrs_covid_admissions_confirmed_pediatric) %>% 
+         adms = admits_last_24_hrs_covid_admissions_confirmed_adult + admits_last_24_hrs_covid_admissions_confirmed_pediatric,
+         hospital_county = gsub(" County", "", hospital_county)) %>% 
   add_epiweek_dates(which_dates = "start") %>% 
-  group_by(start) %>% 
-  summarize(cumul_adm = sum(adms))
+  group_by(start, hospital_county) %>% 
+  summarize(cumul_adm = sum(adms)) %>% 
+  arrange(hospital_county)
+
+write.csv(tele, "~/../Downloads/weekly cumulative admissions by county.csv", row.names = F)
