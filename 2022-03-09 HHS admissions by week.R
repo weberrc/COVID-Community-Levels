@@ -28,7 +28,7 @@ hosp0 <- hhs %>%
   arrange(date) %>% 
   select(date, admissions) %>% 
   filter(date <= Sys.Date() - days(7),
-         date >= as.Date("2020-04-01")) %>% 
+         date >= as.Date("2022-05-01")) %>% 
   mutate(week = floor_date(date, unit = "week")) %>% 
   group_by(week) %>% 
   summarise(week_total = sum(admissions)) 

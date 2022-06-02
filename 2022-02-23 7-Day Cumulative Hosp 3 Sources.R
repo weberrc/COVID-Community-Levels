@@ -101,6 +101,23 @@ ggplot(cophs_tidy, aes(x = hospital_admission_date, y = adm_7)) +
   ggtitle("COPHS")
 
 
+cophs_count <- tbl(conn, in_schema("hospital", "cophs_tidy")) %>% 
+  filter(hospital_admission_date >= "2022-05-01",
+         hospital_admission_date <= "2022-06-02") %>% 
+  collect() %>% 
+  distinct() %>% 
+  group_by(hospital_admission_date) %>% 
+  count() %>% 
+  ungroup() %>% 
+  arrange(hospital_admission_date) %>% 
+  complete(hospital_admission_date = seq.Date(min(hospital_admission_date), max(hospital_admission_date), by="day")) %>% 
+  mutate_at(c(2), ~replace(., is.na(.), 0)) %>% 
+  mutate(week = epiweek(hospital_admission_date), 
+         year = year(hospital_admission_date)) %>% 
+  add_epiweek_dates(which_dates = "start") %>% 
+  group_by(start) %>% 
+  summarize(cumul_adm = sum(n))
+
 # EMR -------------------------------------------------------
 
 emr <- tbl(conn, in_schema("hospital", "emrstate")) %>% 
