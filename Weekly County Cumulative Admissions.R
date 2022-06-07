@@ -2,6 +2,7 @@ library(ciisr)
 library(covidr)
 library(dbplyr)
 library(ggplot2)
+library(googlesheets4)
 library(jsonlite)
 library(lubridate)
 library(magrittr)
@@ -12,6 +13,9 @@ library(RSocrata)
 library(scales)
 library(stringi)
 library(tidyverse)
+
+# 7-day adms are counted Wednesday-Tuesday
+#https://covid.cdc.gov/covid-data-tracker/#county-view?list_select_state=all_states&list_select_county=all_counties&data-type=CommunityLevels
 
 # set wd to the folder this code lives in
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
@@ -69,40 +73,41 @@ county_hosp_rank <- ggplot(hosp0, aes(x = reorder(county, covid_hospital_admissi
 ggsave("~/../Downloads/county_hosp_adm.png", width = 6, height = 10)
 
 # HHSProtect Teletracker Data ---------------------------
-tele <- read_excel("Teletracker/2022-05 HHSProtect Teletracker.xlsx") %>% 
+tele <- read.csv("Teletracker/2022-06-07 HHSProtect Teletracker.csv") %>% 
   select(entry_date,
          admits_last_24_hrs_covid_admissions_confirmed_adult,
          admits_last_24_hrs_covid_admissions_confirmed_pediatric,
          hospital_county) %>% 
-  mutate(week = epiweek(entry_date), 
-         year = year(entry_date),
-         adms = admits_last_24_hrs_covid_admissions_confirmed_adult + admits_last_24_hrs_covid_admissions_confirmed_pediatric,
+  mutate(entry_date = ymd(entry_date)) %>% 
+  mutate(adms = as.numeric(admits_last_24_hrs_covid_admissions_confirmed_adult) + 
+                as.numeric(admits_last_24_hrs_covid_admissions_confirmed_pediatric),
          hospital_county = gsub(" County", "", hospital_county)) %>% 
-  add_epiweek_dates(which_dates = "start") %>% 
-  group_by(hospital_county, start) %>% 
+  filter(entry_date >= "2022-06-01",
+         entry_date <= "2022-06-07") %>% 
+  group_by(hospital_county) %>% 
   summarize(tot_adms = sum(adms)) %>% 
   left_join(county_pop, by = c("hospital_county" = "group")) %>% 
   mutate(cumul_adm_per_100k = round(100000*tot_adms/population, 1)) %>% 
   ungroup() %>% 
-  select(hospital_county, start, cumul_adm_per_100k) %>% 
+  select(hospital_county, cumul_adm_per_100k) %>% 
   distinct() %>% 
-  arrange(hospital_county, desc(start)) %>% 
+  arrange(hospital_county) %>% 
   rename(County = hospital_county,
-         Week = start,
          `Cumulative Admissions Per 100k` = cumul_adm_per_100k)
 
 
-hsa <- read_excel("Teletracker/2022-05 HHSProtect Teletracker.xlsx") %>% 
+hsa <- read.csv("Teletracker/2022-06-07 HHSProtect Teletracker.csv") %>% 
   select(entry_date,
          admits_last_24_hrs_covid_admissions_confirmed_adult,
          admits_last_24_hrs_covid_admissions_confirmed_pediatric,
-         hospital_county) %>%
-  mutate(week = epiweek(entry_date), 
-         year = year(entry_date),
-         adms = admits_last_24_hrs_covid_admissions_confirmed_adult + admits_last_24_hrs_covid_admissions_confirmed_pediatric,
+         hospital_county) %>% 
+  mutate(entry_date = ymd(entry_date)) %>% 
+  mutate(adms = as.numeric(admits_last_24_hrs_covid_admissions_confirmed_adult) + 
+                as.numeric(admits_last_24_hrs_covid_admissions_confirmed_pediatric),
          hospital_county = gsub(" County", "", hospital_county)) %>% 
-  add_epiweek_dates(which_dates = "start") %>% 
-  select(hospital_county, adms, start) %>% 
+  filter(entry_date >= "2022-06-01",
+         entry_date <= "2022-06-07") %>% 
+  select(hospital_county, adms) %>% 
   mutate(hsa_cdc = case_when(hospital_county == "Alamosa" |
                              hospital_county == "Conejos" |
                              hospital_county == "Costilla" |
@@ -183,7 +188,7 @@ hsa <- read_excel("Teletracker/2022-05 HHSProtect Teletracker.xlsx") %>%
                              hospital_county == "Washington" |
                              hospital_county == "Weld" |
                              hospital_county == "Yuma" ~ 760)) %>% 
-  group_by(hsa_cdc, start) %>% 
+  group_by(hsa_cdc) %>% 
   summarize(tot_adms = sum(adms)) %>% 
   left_join(county_pop %>% 
               mutate(hsa_cdc = case_when(group == "Alamosa" |
@@ -271,11 +276,10 @@ hsa <- read_excel("Teletracker/2022-05 HHSProtect Teletracker.xlsx") %>%
   filter(hsa_cdc != 740, hsa_cdc != 771, hsa_cdc != 562) %>% # filter regions with OOS counties
   mutate(cumul_adm_per_100k = round(100000*tot_adms/tot_pop, 1)) %>% 
   ungroup() %>% 
-  select(hsa_cdc, start, cumul_adm_per_100k) %>% 
+  select(hsa_cdc, cumul_adm_per_100k) %>% 
   distinct() %>% 
-  arrange(hsa_cdc, desc(start)) %>% 
+  arrange(hsa_cdc) %>% 
   rename(HSA = hsa_cdc,
-         Week = start,
          `Cumulative Admissions Per 100k` = cumul_adm_per_100k)
   
 co_pop <- tbl(conn, in_schema("dbo", "populations_state")) %>% 
@@ -284,22 +288,20 @@ co_pop <- tbl(conn, in_schema("dbo", "populations_state")) %>%
   select(`2019_Population`) %>% 
   collect()
 
-co_rate <- read_excel("Teletracker/2022-05 HHSProtect Teletracker.xlsx") %>% 
+co_rate <- read.csv("Teletracker/2022-06-07 HHSProtect Teletracker.csv") %>% 
   select(entry_date,
          admits_last_24_hrs_covid_admissions_confirmed_adult,
          admits_last_24_hrs_covid_admissions_confirmed_pediatric) %>% 
-  mutate(week = epiweek(entry_date), 
-         year = year(entry_date),
-         adms = admits_last_24_hrs_covid_admissions_confirmed_adult + admits_last_24_hrs_covid_admissions_confirmed_pediatric) %>% 
-  add_epiweek_dates(which_dates = "start") %>% 
-  group_by(start) %>% 
+  mutate(entry_date = ymd(entry_date)) %>% 
+  mutate(adms = as.numeric(admits_last_24_hrs_covid_admissions_confirmed_adult) + 
+           as.numeric(admits_last_24_hrs_covid_admissions_confirmed_pediatric)) %>% 
+  filter(entry_date >= "2022-06-01",
+         entry_date <= "2022-06-07") %>%
   summarize(tot_adms = sum(adms)) %>% 
   ungroup() %>% 
   mutate(cumul_adm_per_100k = round(100000*tot_adms/co_pop$`2019_Population`, 1)) %>% 
-  arrange(desc(start)) %>% 
   select(-tot_adms) %>% 
-  rename(Week = start,
-         `Cumulative Admissions Per 100k` = cumul_adm_per_100k)
+  rename(`Cumulative Admissions Per 100k` = cumul_adm_per_100k)
 
 # Save Data ---------------------------------------------------------------
 adm_rates <- list(
@@ -308,3 +310,14 @@ adm_rates <- list(
   "Statewide" = co_rate)
 
 write.xlsx(adm_rates, "~/../Downloads/cumulative admission rates.xlsx")
+
+# write to google sheets -----------------------------
+
+sheet_write(tele, ss = "https://docs.google.com/spreadsheets/d/1DfDrq5OZW9QBpz1UoEe9wluGTlbMG8ENrZkFqOXVOqI/edit#gid=18976810",
+            sheet = "County Level")
+
+sheet_write(hsa, ss = "https://docs.google.com/spreadsheets/d/1DfDrq5OZW9QBpz1UoEe9wluGTlbMG8ENrZkFqOXVOqI/edit#gid=18976810",
+            sheet = "HSA Level")
+
+sheet_write(co_rate, ss = "https://docs.google.com/spreadsheets/d/1DfDrq5OZW9QBpz1UoEe9wluGTlbMG8ENrZkFqOXVOqI/edit#gid=18976810",
+            sheet = "State Level")
