@@ -25,14 +25,54 @@ seven_day_total <- function(x){
 
 connect("covid19", server = "DPHE144")
 
+hsa_crosswalk <- data.frame(county = c("Alamosa", "Conejos", "Costilla", "Mineral", "Rio Grande", "Saguache",
+                                       "Jackson",
+                                       "Boulder", "Broomfield",
+                                       "Chaffee", "Lake",
+                                       "Adams", "Arapahoe", "Clear Creek", "Denver", "Douglas", "Elbert",
+                                       "Gilpin", "Grand", "Jefferson", "Park", "Summit",
+                                       "Cheyenne", "El Paso", "Kit Carson", "Lincoln", "Teller",
+                                       "Custer", "Fremont",
+                                       "Baca",
+                                       "Larimer",
+                                       "Logan", "Phillips", "Sedgwick",
+                                       "Eagle", "Garfield", "Mesa", "Pitkin", "Rio Blanco",
+                                       "Delta", "Gunnison", "Hinsdale", "Montrose", "Ouray", "San Miguel",
+                                       "Bent", "Crowley", "Kiowa", "Otero", "Prowers",
+                                       "Huerfano", "Las Animas", "Pueblo",
+                                       "Moffat", "Routt",
+                                       "Archuleta", "Dolores", "La Plata", "Montezuma", "San Juan",
+                                       "Morgan", "Washington", "Weld", "Yuma"),
+                            hsa_cdc = c(rep(731, 6),
+                                        771,
+                                        rep(795, 2), 
+                                        rep(786, 2),
+                                        rep(688, 11),
+                                        rep(754, 5),
+                                        rep(812, 2),
+                                        562,
+                                        796,
+                                        rep(763, 3),
+                                        rep(711, 5),
+                                        rep(761, 6),
+                                        rep(745, 5),
+                                        rep(704, 3),
+                                        rep(735, 2),
+                                        rep(740, 5),
+                                        rep(760, 4)))
+
+
+
 # get county populations ------------------------------
 county_pop <- tbl(conn, in_schema("dbo", "populations")) %>% 
   filter(metric == "county",
          year == 2020) %>% 
   select(group, population) %>% 
-  collect()
+  collect() 
 
 county_pop$group <- stri_trans_totitle(county_pop$group)
+
+county_pop %<>% left_join(hsa_crosswalk, by = c("group" = "county"))
 
 # HHS Hospitalizations -------------------------------
 # https://data.cdc.gov/Public-Health-Surveillance/United-States-COVID-19-Community-Levels-by-County/3nnm-4jni
@@ -86,7 +126,8 @@ tele <- read.csv("Teletracker/2022-06-07 HHSProtect Teletracker.csv") %>%
          entry_date <= "2022-06-07") %>% 
   group_by(hospital_county) %>% 
   summarize(tot_adms = sum(adms)) %>% 
-  left_join(county_pop, by = c("hospital_county" = "group")) %>% 
+  left_join(county_pop %>% 
+              select(-hsa_cdc), by = c("hospital_county" = "group")) %>% 
   mutate(cumul_adm_per_100k = round(100000*tot_adms/population, 1)) %>% 
   ungroup() %>% 
   select(hospital_county, cumul_adm_per_100k) %>% 
@@ -95,6 +136,10 @@ tele <- read.csv("Teletracker/2022-06-07 HHSProtect Teletracker.csv") %>%
   rename(County = hospital_county,
          `Cumulative Admissions Per 100k` = cumul_adm_per_100k)
 
+
+hsa_pop <- county_pop %>% 
+  group_by(hsa_cdc) %>% 
+  summarize(hsa_pop = sum(population))
 
 hsa <- read.csv("Teletracker/2022-06-07 HHSProtect Teletracker.csv") %>% 
   select(entry_date,
@@ -108,179 +153,26 @@ hsa <- read.csv("Teletracker/2022-06-07 HHSProtect Teletracker.csv") %>%
   filter(entry_date >= "2022-06-01",
          entry_date <= "2022-06-07") %>% 
   select(hospital_county, adms) %>% 
-  mutate(hsa_cdc = case_when(hospital_county == "Alamosa" |
-                             hospital_county == "Conejos" |
-                             hospital_county == "Costilla" |
-                             hospital_county == "Mineral" |
-                             hospital_county == "Rio Grande" |
-                             hospital_county == "Saguache" ~ 731,
-                           
-                           hospital_county == "Jackson"  ~ 771,
-                           
-                           hospital_county == "Boulder" |
-                             hospital_county == "Broomfield" ~ 795,
-                           
-                           hospital_county == "Chaffee" |
-                             hospital_county == "Lake" ~ 786,
-                           
-                           hospital_county == "Adams" |
-                             hospital_county == "Arapahoe" |
-                             hospital_county == "Clear Creek" |
-                             hospital_county == "Denver" |
-                             hospital_county == "Douglas" |
-                             hospital_county == "Elbert" |
-                             hospital_county == "Gilpin" |
-                             hospital_county == "Grand" |
-                             hospital_county == "Jefferson" |
-                             hospital_county == "Park" |
-                             hospital_county == "Summit" ~ 688,
-                           
-                           hospital_county == "Cheyenne" |
-                             hospital_county == "El Paso" |
-                             hospital_county == "Kit Carson" |
-                             hospital_county == "Lincoln" |
-                             hospital_county == "Teller" ~ 754,
-                           
-                           hospital_county == "Custer" |
-                             hospital_county == "Fremont" ~ 812,
-                           
-                           hospital_county == "Baca" ~ 562,
-                           
-                           hospital_county == "Larimer" ~ 796,
-                           
-                           hospital_county == "Logan" |
-                             hospital_county == "Phillips" |
-                             hospital_county == "Sedgwick" ~ 763,
-                           
-                           hospital_county == "Eagle" |
-                             hospital_county == "Garfield" |
-                             hospital_county == "Mesa" |
-                             hospital_county == "Pitkin" |
-                             hospital_county == "Rio Blanco" ~ 711,
-                           
-                           hospital_county == "Delta" |
-                             hospital_county == "Gunnison" |
-                             hospital_county == "Hinsdale" |
-                             hospital_county == "Montrose" |
-                             hospital_county == "Ouray" |
-                             hospital_county == "San Miguel" ~ 761,
-                           
-                           hospital_county == "Bent" |
-                             hospital_county == "Crowley" |
-                             hospital_county == "Kiowa" |
-                             hospital_county == "Otero" |
-                             hospital_county == "Prowers" ~ 745,
-                           
-                           hospital_county == "Huerfano" |
-                             hospital_county == "Las Animas" |
-                             hospital_county == "Pueblo" ~ 704,
-                           
-                           hospital_county == "Moffat" |
-                             hospital_county == "Routt" ~ 735,
-                           
-                           hospital_county == "Archuleta" |
-                             hospital_county == "Dolores" |
-                             hospital_county == "La Plata" |
-                             hospital_county == "Montezuma" |
-                             hospital_county == "San Juan" ~ 740,
-                           
-                           hospital_county == "Morgan" |
-                             hospital_county == "Washington" |
-                             hospital_county == "Weld" |
-                             hospital_county == "Yuma" ~ 760)) %>% 
+  group_by(hospital_county) %>%
+  summarize(tot_adms = sum(adms)) %>%
+  ungroup() %>% 
+  left_join(hsa_crosswalk, by = c("hospital_county" = "county")) %>%
   group_by(hsa_cdc) %>% 
-  summarize(tot_adms = sum(adms)) %>% 
-  left_join(county_pop %>% 
-              mutate(hsa_cdc = case_when(group == "Alamosa" |
-                                           group == "Conejos" |
-                                           group == "Costilla" |
-                                           group == "Mineral" |
-                                           group == "Rio Grande" |
-                                           group == "Saguache" ~ 731,
-                                         
-                                         group == "Jackson"  ~ 771,
-                                         
-                                         group == "Boulder" |
-                                           group == "Broomfield" ~ 795,
-                                         
-                                         group == "Chaffee" |
-                                           group == "Lake" ~ 786,
-                                         
-                                         group == "Adams" |
-                                           group == "Arapahoe" |
-                                           group == "Clear Creek" |
-                                           group == "Denver" |
-                                           group == "Douglas" |
-                                           group == "Elbert" |
-                                           group == "Gilpin" |
-                                           group == "Grand" |
-                                           group == "Jefferson" |
-                                           group == "Park" |
-                                           group == "Summit" ~ 688,
-                                         
-                                         group == "Cheyenne" |
-                                           group == "El Paso" |
-                                           group == "Kit Carson" |
-                                           group == "Lincoln" |
-                                           group == "Teller" ~ 754,
-                                         
-                                         group == "Custer" |
-                                           group == "Fremont" ~ 812,
-                                         
-                                         group == "Baca" ~ 562,
-                                         
-                                         group == "Larimer" ~ 796,
-                                         
-                                         group == "Logan" |
-                                           group == "Phillips" |
-                                           group == "Sedgwick" ~ 763,
-                                         
-                                         group == "Eagle" |
-                                           group == "Garfield" |
-                                           group == "Mesa" |
-                                           group == "Pitkin" |
-                                           group == "Rio Blanco" ~ 711,
-                                         
-                                         group == "Delta" |
-                                           group == "Gunnison" |
-                                           group == "Hinsdale" |
-                                           group == "Montrose" |
-                                           group == "Ouray" |
-                                           group == "San Miguel" ~ 761,
-                                         
-                                         group == "Bent" |
-                                           group == "Crowley" |
-                                           group == "Kiowa" |
-                                           group == "Otero" |
-                                           group == "Prowers" ~ 745,
-                                         
-                                         group == "Huerfano" |
-                                           group == "Las Animas" |
-                                           group == "Pueblo" ~ 704,
-                                         
-                                         group == "Moffat" |
-                                           group == "Routt" ~ 735,
-                                         
-                                         group == "Archuleta" |
-                                           group == "Dolores" |
-                                           group == "La Plata" |
-                                           group == "Montezuma" |
-                                           group == "San Juan" ~ 740,
-                                         
-                                         group == "Morgan" |
-                                           group == "Washington" |
-                                           group == "Weld" |
-                                           group == "Yuma" ~ 760)) %>%
-              group_by(hsa_cdc) %>% 
-              summarize(tot_pop = sum(population)), by = "hsa_cdc") %>% 
+  summarize(hsa_adms = sum(tot_adms)) %>% 
+  ungroup() %>% 
+  left_join(hsa_pop) %>% 
   filter(hsa_cdc != 740, hsa_cdc != 771, hsa_cdc != 562) %>% # filter regions with OOS counties
-  mutate(cumul_adm_per_100k = round(100000*tot_adms/tot_pop, 1)) %>% 
+  mutate(cumul_adm_per_100k = round(100000*hsa_adms/hsa_pop, 1)) %>% 
   ungroup() %>% 
   select(hsa_cdc, cumul_adm_per_100k) %>% 
   distinct() %>% 
   arrange(hsa_cdc) %>% 
+  left_join(hsa_crosswalk %>% 
+              group_by(hsa_cdc) %>% 
+              summarise(counties_in_hsa = paste(unique(county), collapse = ', '))) %>% 
   rename(HSA = hsa_cdc,
-         `Cumulative Admissions Per 100k` = cumul_adm_per_100k)
+         `Cumulative Admissions Per 100k` = cumul_adm_per_100k,
+         `Counties in HSA` = counties_in_hsa)
   
 co_pop <- tbl(conn, in_schema("dbo", "populations_state")) %>% 
   filter(State == "Colorado",
