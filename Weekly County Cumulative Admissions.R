@@ -113,7 +113,7 @@ county_hosp_rank <- ggplot(hosp0, aes(x = reorder(county, covid_hospital_admissi
 ggsave("~/../Downloads/county_hosp_adm.png", width = 6, height = 10)
 
 # HHSProtect Teletracker Data ---------------------------
-tele <- read.csv("Teletracker/2022-06-07 HHSProtect Teletracker.csv") %>% 
+tele <- read.csv("Teletracker/2022-06-08 HHSProtect Teletracker.csv") %>% 
   select(entry_date,
          admits_last_24_hrs_covid_admissions_confirmed_adult,
          admits_last_24_hrs_covid_admissions_confirmed_pediatric,
@@ -141,7 +141,7 @@ hsa_pop <- county_pop %>%
   group_by(hsa_cdc) %>% 
   summarize(hsa_pop = sum(population))
 
-hsa <- read.csv("Teletracker/2022-06-07 HHSProtect Teletracker.csv") %>% 
+hsa <- read.csv("Teletracker/2022-06-08 HHSProtect Teletracker.csv") %>% 
   select(entry_date,
          admits_last_24_hrs_covid_admissions_confirmed_adult,
          admits_last_24_hrs_covid_admissions_confirmed_pediatric,
@@ -180,7 +180,7 @@ co_pop <- tbl(conn, in_schema("dbo", "populations_state")) %>%
   select(`2019_Population`) %>% 
   collect()
 
-co_rate <- read.csv("Teletracker/2022-06-07 HHSProtect Teletracker.csv") %>% 
+co_rate <- read.csv("Teletracker/2022-06-08 HHSProtect Teletracker.csv") %>% 
   select(entry_date,
          admits_last_24_hrs_covid_admissions_confirmed_adult,
          admits_last_24_hrs_covid_admissions_confirmed_pediatric) %>% 
