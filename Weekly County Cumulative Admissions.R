@@ -113,7 +113,7 @@ county_hosp_rank <- ggplot(hosp0, aes(x = reorder(county, covid_hospital_admissi
 ggsave("~/../Downloads/county_hosp_adm.png", width = 6, height = 10)
 
 # HHSProtect Teletracker Data ---------------------------
-tele <- read.csv("Teletracker/2022-06-08 HHSProtect Teletracker.csv") %>% 
+tele <- read.csv("Teletracker/2022-06-15 HHSProtect Teletracker.csv") %>% 
   select(entry_date,
          admits_last_24_hrs_covid_admissions_confirmed_adult,
          admits_last_24_hrs_covid_admissions_confirmed_pediatric,
@@ -122,8 +122,8 @@ tele <- read.csv("Teletracker/2022-06-08 HHSProtect Teletracker.csv") %>%
   mutate(adms = as.numeric(admits_last_24_hrs_covid_admissions_confirmed_adult) + 
                 as.numeric(admits_last_24_hrs_covid_admissions_confirmed_pediatric),
          hospital_county = gsub(" County", "", hospital_county)) %>% 
-  filter(entry_date >= "2022-06-01",
-         entry_date <= "2022-06-07") %>% 
+  filter(entry_date >= "2022-06-08",
+         entry_date <= "2022-06-14") %>% 
   group_by(hospital_county) %>% 
   summarize(tot_adms = sum(adms)) %>% 
   left_join(county_pop %>% 
@@ -139,9 +139,14 @@ tele <- read.csv("Teletracker/2022-06-08 HHSProtect Teletracker.csv") %>%
 
 hsa_pop <- county_pop %>% 
   group_by(hsa_cdc) %>% 
-  summarize(hsa_pop = sum(population))
+  summarize(hsa_pop = sum(population)) %>% 
+  ungroup() %>% 
+  mutate(hsa_pop = case_when(hsa_cdc == 740 ~ hsa_pop + 125608 + 15295,
+                                hsa_cdc == 771 ~ hsa_pop + 38664 + 15073,
+                                hsa_cdc == 562 ~ hsa_pop + 7324 + 2030,
+                                TRUE ~ hsa_pop))
 
-hsa <- read.csv("Teletracker/2022-06-08 HHSProtect Teletracker.csv") %>% 
+hsa <- read.csv("Teletracker/2022-06-15 HHSProtect Teletracker.csv") %>% 
   select(entry_date,
          admits_last_24_hrs_covid_admissions_confirmed_adult,
          admits_last_24_hrs_covid_admissions_confirmed_pediatric,
@@ -150,8 +155,8 @@ hsa <- read.csv("Teletracker/2022-06-08 HHSProtect Teletracker.csv") %>%
   mutate(adms = as.numeric(admits_last_24_hrs_covid_admissions_confirmed_adult) + 
                 as.numeric(admits_last_24_hrs_covid_admissions_confirmed_pediatric),
          hospital_county = gsub(" County", "", hospital_county)) %>% 
-  filter(entry_date >= "2022-06-01",
-         entry_date <= "2022-06-07") %>% 
+  filter(entry_date >= "2022-06-08",
+         entry_date <= "2022-06-14") %>% 
   select(hospital_county, adms) %>% 
   group_by(hospital_county) %>%
   summarize(tot_adms = sum(adms)) %>%
@@ -161,7 +166,6 @@ hsa <- read.csv("Teletracker/2022-06-08 HHSProtect Teletracker.csv") %>%
   summarize(hsa_adms = sum(tot_adms)) %>% 
   ungroup() %>% 
   left_join(hsa_pop) %>% 
-  filter(hsa_cdc != 740, hsa_cdc != 771, hsa_cdc != 562) %>% # filter regions with OOS counties
   mutate(cumul_adm_per_100k = round(100000*hsa_adms/hsa_pop, 1)) %>% 
   ungroup() %>% 
   select(hsa_cdc, cumul_adm_per_100k) %>% 
@@ -170,9 +174,14 @@ hsa <- read.csv("Teletracker/2022-06-08 HHSProtect Teletracker.csv") %>%
   left_join(hsa_crosswalk %>% 
               group_by(hsa_cdc) %>% 
               summarise(counties_in_hsa = paste(unique(county), collapse = ', '))) %>% 
+  mutate(OOS_counties = case_when(hsa_cdc == 740 ~ "San Juan (NM), San Juan (UT)",
+                                  hsa_cdc == 771 ~ "Albany (WY), Carbon (WY)",
+                                  hsa_cdc == 562 ~ "Grant (KS), Stanton (KS)",
+                                  TRUE ~ "")) %>% 
   rename(HSA = hsa_cdc,
          `Cumulative Admissions Per 100k` = cumul_adm_per_100k,
-         `Counties in HSA` = counties_in_hsa)
+         `Counties in HSA` = counties_in_hsa,
+         `OOS Counties in HSA` = OOS_counties)
   
 co_pop <- tbl(conn, in_schema("dbo", "populations_state")) %>% 
   filter(State == "Colorado",
@@ -180,15 +189,15 @@ co_pop <- tbl(conn, in_schema("dbo", "populations_state")) %>%
   select(`2019_Population`) %>% 
   collect()
 
-co_rate <- read.csv("Teletracker/2022-06-08 HHSProtect Teletracker.csv") %>% 
+co_rate <- read.csv("Teletracker/2022-06-15 HHSProtect Teletracker.csv") %>% 
   select(entry_date,
          admits_last_24_hrs_covid_admissions_confirmed_adult,
          admits_last_24_hrs_covid_admissions_confirmed_pediatric) %>% 
   mutate(entry_date = ymd(entry_date)) %>% 
   mutate(adms = as.numeric(admits_last_24_hrs_covid_admissions_confirmed_adult) + 
            as.numeric(admits_last_24_hrs_covid_admissions_confirmed_pediatric)) %>% 
-  filter(entry_date >= "2022-06-01",
-         entry_date <= "2022-06-07") %>%
+  filter(entry_date >= "2022-06-08",
+         entry_date <= "2022-06-14") %>%
   summarize(tot_adms = sum(adms)) %>% 
   ungroup() %>% 
   mutate(cumul_adm_per_100k = round(100000*tot_adms/co_pop$`2019_Population`, 1)) %>% 
